@@ -1,0 +1,8 @@
+target_folder: "D:\\data\\grive\\My Drive\\My Drive"
+hash_algorithm: "sha256"
+report_format: "csv"
+include_subdirectories: true
+duplicate_threshold: 0.9
+debug: false
+exclude_files:
+  - "desktop.ini"

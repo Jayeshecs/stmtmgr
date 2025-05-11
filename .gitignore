@@ -1,0 +1,57 @@
+# VS Code excludes
+.vscode/
+
+# Data excludes
+data/
+consolidated_transactions.csv
+
+# python excludes
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+*.eggs/
+*.whl
+*.mypy_cache/
+*.pytest_cache/
+*.coverage
+*.cover
+*.hypothesis/
+*.tox/
+*.venv/
+*.env
+*.envrc
+*.venvrc
+*.virtualenv
+*.virtualenvs
+*.ipynb_checkpoints
+*.DS_Store
+test_output/
+
+# SQL Lite excludes
+*.sqlite
+*.sqlite3
+*.db
+*.db3
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
+db/
+
+# WASM excludes
+*.wasm
+*.wasm.map
+*.wasm.dSYM
+*.wasm.dSYM.zip
+
+# RUST excludes
+target/
+*.rs.bk
+*.rs.bk*
+**/Cargo.lock
+
