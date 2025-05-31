@@ -5,6 +5,7 @@ import os
 from processors.statement_processor_provider import StatementProcessorProvider
 from store.txn_store import TxnStore
 from classifier.classifier import Classifier
+from classifier.auto_classifier import AutoClassifier
 
 def detect_statement_type(file_name):
     """Detect statement type based on file name."""
@@ -57,7 +58,23 @@ def import_classification(txn_store: TxnStore, csv_file: str):
     except Exception as e:
         print(f"Error importing classification: {e}")
 
+def auto_classify(txn_store: TxnStore):
+    """
+    Automatically classify transactions using the AutoClassifier module.
+    This function initializes the AutoClassifier, trains it on the transaction data,
+    and applies the classification to the transactions in the store.
+    It assumes that the transactions have been preprocessed and stored in the TxnStore.
+    This function does not take any parameters and uses the TxnStore instance to access the transactions.
+    It prints messages to indicate the progress of the auto-classification process.
+    It is designed to be called from the command line interface of the application.
+    It is expected to be used after the transactions have been processed and stored in the TxnStore.
+    It does not return any value.
+    """
 
+    print("Auto-classifying transactions...")
+    auto_classifier = AutoClassifier(txn_store)    
+    auto_classifier.apply_classification()
+    print("Auto-classification completed successfully.")
 
 def main():
     # Check command line arguments for operation type
@@ -122,6 +139,10 @@ def main():
 
         input_path = sys.argv[2]
         import_classification(txn_store, input_path)
+    
+    elif operation == "auto-classify":
+        print("Auto-classifying transactions...")
+        auto_classify(txn_store)
 
     else:
         print(f"Unknown operation: {operation}")

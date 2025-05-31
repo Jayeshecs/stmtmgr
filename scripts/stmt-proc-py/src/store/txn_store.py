@@ -133,6 +133,20 @@ class TxnStore:
         Update a specific transaction based on date, narration, amount, and credit indicator.
         Returns the number of rows updated, or 0 if no matching transaction is found.
         """
+        # Convert txn_date to string if it's a pandas Timestamp
+        if hasattr(txn_date, 'strftime'):
+            txn_date = txn_date.strftime('%Y-%m-%d')
+        elif not isinstance(txn_date, str):
+            txn_date = str(txn_date)
+        # Convert txn_amnt to float if it's a string with commas
+        if isinstance(txn_amnt, str):
+            txn_amnt = txn_amnt.replace(',', '')
+            try:
+                txn_amnt = float(txn_amnt)
+            except ValueError:
+                print(f"Invalid transaction amount: {txn_amnt}. Update skipped.")
+                return 0
+        
         with self.conn as conn:
             cursor = conn.cursor()
             # Ensure that the transaction exists before updating
