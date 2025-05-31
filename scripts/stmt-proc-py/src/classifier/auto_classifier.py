@@ -9,6 +9,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.multioutput import MultiOutputClassifier
 from store.txn_store import TxnStore
+from prompt_toolkit import prompt
+from classifier.classification_completer import CustomTransactionCompleter
 
 class AutoClassifier:
     """
@@ -149,7 +151,7 @@ class AutoClassifier:
                 # Print with sequence numbers starting from 1 in this batch
                 print("\nBatch:")
                 for seq, (idx, row) in enumerate(batch.iterrows(), start=1):
-                    print(f"{seq}. {row['raw_data']} | {row['txn_source']} | {row['txn_date']} | {row['narration']} | {row['txn_amount']} | {row['credit_indicator']} | {row['classification']}")
+                    print(f"{seq}. {row['txn_source']} | {row['txn_date']} | {row['narration']} | {row['txn_amount']} | {row['credit_indicator']} |\n{row['classification']}")
                 print("\nPress ENTER to accept all classifications in this batch,")
                 print("or enter comma-separated sequence numbers (e.g. 2,4) for records NOT accepted,")
                 print("or type 'exit' to stop:")
@@ -188,7 +190,8 @@ class AutoClassifier:
                     row = classify_df.loc[idx]
                     print(f"\nRecord {seq}:")
                     print(f"{row['raw_data']} | {row['txn_source']} | {row['txn_date']} | {row['narration']} | {row['txn_amount']} | {row['credit_indicator']} | {row['classification']}")
-                    manual_class = input("Enter manual classification as 'txn_type|category|sub_category', or press ENTER to skip: ").strip()
+                    # manual_class = input("Enter manual classification as 'txn_type|category|sub_category', or press ENTER to skip: ").strip()
+                    manual_class = prompt("Enter manual classification as 'txn_type|category|sub_category', or press ENTER to skip: ", completer=CustomTransactionCompleter()).strip()
                     if manual_class:
                         parts = manual_class.split('|')
                         if len(parts) == 3:
