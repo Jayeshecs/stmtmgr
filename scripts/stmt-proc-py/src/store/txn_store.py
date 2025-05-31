@@ -95,3 +95,62 @@ class TxnStore:
         with self.conn as conn:
             df = pd.read_sql_query("SELECT row_id, txn_source, txn_date, narration, txn_amount, credit_indicator, txn_type, category, sub_category, raw_data FROM transactions", conn)
             df.to_csv(self.csv_file, index=False)
+
+    def update_transactions_from_csv(self, updated_csv_file):
+        """Update type, category, and sub-category in transactions from a CSV file."""
+        updated_df = pd.read_csv(updated_csv_file)
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            for _, row in updated_df.iterrows():
+                cursor.execute("""
+                    UPDATE transactions
+                    SET txn_type = ?, category = ?, sub_category = ?
+                    WHERE raw_data = ?
+                """, (row['type'], row['category'], row['sub-category'], row['raw_data']))
+            conn.commit()
+
+    def get_transactions(self):
+        """Retrieve all transactions as a DataFrame."""
+        query = "SELECT raw_data, txn_source, txn_amount, narration, credit_indicator, txn_date, txn_type, category, sub_category FROM transactions"
+        return pd.read_sql_query(query, self.conn)
+
+    def update_transactions(self, raw_data_list, txn_type, category, sub_category):
+        """Update transactions with the given classifications."""
+        with self.conn as conn:
+            cursor = conn.cursor()
+            for raw_data in raw_data_list:
+                cursor.execute("""
+                    UPDATE transactions
+                    SET txn_type = ?,
+                        category = ?,
+                        sub_category = ?
+                    WHERE raw_data = ?
+                """, (txn_type, category, sub_category, raw_data))
+            conn.commit()
+
+    def update_transaction(self, txn_date, narration, txn_amnt, credit_indicator, txn_type, category, sub_category):
+        """
+        Update a specific transaction based on date, narration, amount, and credit indicator.
+        Returns the number of rows updated, or 0 if no matching transaction is found.
+        """
+        with self.conn as conn:
+            cursor = conn.cursor()
+            # Ensure that the transaction exists before updating
+            cursor.execute("""
+                SELECT COUNT(*) FROM transactions
+                WHERE txn_date = ? AND narration = ? AND (CAST(REPLACE(txn_amount, ',', '') AS REAL) - ?) < 0.01 AND credit_indicator = ?
+            """, (txn_date, narration, txn_amnt, credit_indicator))
+            count = cursor.fetchone()[0]
+            if count == 0:
+                print(f"No transaction found for date: {txn_date}, narration: {narration}, amount: {txn_amnt}, credit indicator: {credit_indicator}. Update skipped.")
+                return 0
+            cursor.execute("""
+                UPDATE transactions
+                SET txn_type = ?,
+                    category = ?,
+                    sub_category = ?
+                WHERE txn_date = ? AND narration = ? AND (CAST(REPLACE(txn_amount, ',', '') AS REAL) - ?) < 0.01 AND credit_indicator = ?
+            """, (txn_type, category, sub_category, txn_date, narration, txn_amnt, credit_indicator))
+            updated_count = cursor.rowcount
+            conn.commit()
+            return updated_count

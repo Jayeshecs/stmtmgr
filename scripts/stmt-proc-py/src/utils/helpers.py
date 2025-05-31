@@ -27,3 +27,20 @@ def write_transaction_to_csv(transaction, csv_file):
     except FileNotFoundError:
         # If the file does not exist, create it and write the transaction
         pd.DataFrame([transaction]).to_csv(csv_file, index=False)
+
+def parse_date_util(date_str):
+    """
+    Parse a date string in the format 'yyyy-mm-dd' into a standard date object.
+    Args:
+        date_str (str): The date string to parse.
+    Returns:
+        datetime.date: The parsed date object, or None if parsing fails.
+    """
+    # Function to parse a date string into a standard format
+    from datetime import datetime
+    try:
+        return datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        print(f"Error parsing date: {date_str}")
+        return None
+    
