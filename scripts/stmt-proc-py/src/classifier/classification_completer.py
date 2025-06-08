@@ -92,7 +92,23 @@ classifications = [
     "Transfer|A/c to A/c|Vicky",
     "Expense|Insurance|Car",
     "Transfer|A/c to A/c|AshwinLad",
-    "Expense|Shopping|Footwear"
+    "Expense|Shopping|Footwear",
+    "Expense|Maintenance|Pune",
+    "Transfer|A/c to A/c|Doctor",
+    "Transfer|A/c to A/c|Kalpee",
+    "Transfer|A/c to A/c|RaviShah",
+    "Expense|Lifestyle|Icecream",
+    "Transfer|A/c to A/c|AshwinW",
+    "Transfer|A/c to A/c|Junaid",
+    "Transfer|A/c to A/c|Sopaneel",
+    "Transfer|A/c to A/c|Contribution",
+    "Expense|Travel|Train",
+    "Transfer|A/c to A/c|Accounts",
+    "Expense|Tax|Tax Filing",
+    "Expense|Travel|Parking",
+    "Expense|Shopping|Godaddy",
+    "Transfer|A/c to A/c|Hemal",
+    "Expense|Maintenance|ActivaI"
 ]
 
 class CustomTransactionCompleter(Completer):

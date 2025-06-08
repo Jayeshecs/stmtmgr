@@ -40,7 +40,7 @@ class Classifier:
         """
         metadata_file = self.config.get('classifier_metadata_file', './classifier_metadata.csv')
         try:
-            df = pd.read_csv(metadata_file)
+            df = pd.read_csv(metadata_file, delimiter='|')
             print(f"Columns in metadata file: {df.columns.tolist()}")
             if not all(col in df.columns for col in ['txn_type', 'category', 'sub_category']):
                 raise ValueError("Metadata file must contain txn_type, category, and sub_category columns.")

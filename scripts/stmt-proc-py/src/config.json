@@ -1,0 +1,4 @@
+{
+    "similarity_threshold": 0.7,
+    "classifier_metadata_file": "./classifier_metadata.csv"
+}

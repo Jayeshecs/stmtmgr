@@ -151,7 +151,7 @@ class AutoClassifier:
                 # Print with sequence numbers starting from 1 in this batch
                 print("\nBatch:")
                 for seq, (idx, row) in enumerate(batch.iterrows(), start=1):
-                    print(f"{seq}. {row['txn_source']} | {row['txn_date']} | {row['narration']} | {row['txn_amount']} | {row['credit_indicator']} |\n{row['classification']}")
+                    print(f"{seq}. {row['credit_indicator']} | {row['narration']} | {row['txn_date']} | {row['txn_amount']} | {row['txn_source']} | \n{row['classification']}")
                 print("\nPress ENTER to accept all classifications in this batch,")
                 print("or enter comma-separated sequence numbers (e.g. 2,4) for records NOT accepted,")
                 print("or type 'exit' to stop:")
