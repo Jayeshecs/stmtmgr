@@ -1,7 +1,17 @@
 import pandas as pd
 import os
 import sqlite3
+import enum
 
+"""
+txn_store.py
+This module provides a class to handle storing transactions in an SQLite database and exporting them to a CSV file.
+"""
+class TxnState:
+    """Enum-like class to represent the state of a transaction."""
+    PENDING_CLASSIFICATION = "PENDING_CLASSIFICATION"
+    PENDING_REVIEW = "PENDING_REVIEW"
+    ACCEPTED = "ACCEPTED"
 
 class TxnStore:
     """Class to handle storing transactions in an SQLite database and exporting to a CSV file."""
@@ -29,7 +39,7 @@ class TxnStore:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             # Create the transactions table if it doesn't exist
-            cursor.execute("""
+            cursor.execute(f"""
                 CREATE TABLE IF NOT EXISTS transactions (
                     row_id TEXT PRIMARY KEY,
                     raw_data TEXT,
@@ -41,8 +51,26 @@ class TxnStore:
                     txn_type TEXT,
                     category TEXT,
                     sub_category TEXT
+                    state TEXT DEFAULT '{TxnState.PENDING_CLASSIFICATION}'
                 )
             """)
+            # Add column 'state' if it doesn't exist
+            # Check if 'state' column exists before adding
+            cursor.execute("PRAGMA table_info(transactions)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if 'state' not in columns:
+                cursor.execute(f"""
+                           ALTER TABLE transactions
+                           ADD COLUMN state TEXT DEFAULT '{TxnState.PENDING_CLASSIFICATION}'
+                           """)
+            
+            # Update state for existing transactions if txn_type is not empty
+            cursor.execute("""
+                UPDATE transactions
+                SET state = ?
+                WHERE state = ? and txn_type IS NOT NULL AND txn_type != ''
+            """, (TxnState.PENDING_REVIEW, TxnState.PENDING_CLASSIFICATION))
+            # Commit the changes
             conn.commit()
     
     def get_connection(self):
@@ -71,8 +99,8 @@ class TxnStore:
                     cursor.execute("""
                         INSERT INTO transactions (
                             row_id, txn_source, txn_date, narration,
-                            txn_amount, credit_indicator, txn_type, category, sub_category, raw_data
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            txn_amount, credit_indicator, txn_type, category, sub_category, raw_data, state
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         transaction["row-id"],
                         transaction["txn-source"],
@@ -83,7 +111,8 @@ class TxnStore:
                         transaction["txn-type"],
                         transaction["category"],
                         transaction["sub-category"],
-                        transaction["raw-data"]
+                        transaction["raw-data"],
+                        TxnState.PENDING_CLASSIFICATION  # Default state
                     ))
                 except sqlite3.IntegrityError:
                     # Skip duplicate transactions (row_id is the primary key)
@@ -93,7 +122,7 @@ class TxnStore:
     def export_transactions(self):
         """Export transactions from the SQLite database to a CSV file."""
         with self.conn as conn:
-            df = pd.read_sql_query("SELECT row_id, txn_source, txn_date, narration, txn_amount, credit_indicator, txn_type, category, sub_category, raw_data FROM transactions", conn)
+            df = pd.read_sql_query("SELECT row_id, txn_source, txn_date, narration, txn_amount, credit_indicator, txn_type, category, sub_category, raw_data, state FROM transactions", conn)
             df.to_csv(self.csv_file, index=False)
 
     def update_transactions_from_csv(self, updated_csv_file):
@@ -102,19 +131,24 @@ class TxnStore:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             for _, row in updated_df.iterrows():
+                state = TxnState.PENDING_REVIEW
+                # Check if the transaction is accepted
+                if row['state'] == TxnState.ACCEPTED:
+                    state = TxnState.ACCEPTED
+                # Update the transaction in the database
                 cursor.execute("""
                     UPDATE transactions
-                    SET txn_type = ?, category = ?, sub_category = ?
+                    SET txn_type = ?, category = ?, sub_category = ?, state = ?
                     WHERE raw_data = ?
-                """, (row['type'], row['category'], row['sub-category'], row['raw_data']))
+                """, (row['type'], row['category'], row['sub-category'], state, row['raw_data']))
             conn.commit()
 
     def get_transactions(self):
         """Retrieve all transactions as a DataFrame."""
-        query = "SELECT raw_data, txn_source, txn_amount, narration, credit_indicator, txn_date, txn_type, category, sub_category FROM transactions"
+        query = "SELECT raw_data, txn_source, txn_amount, narration, credit_indicator, txn_date, txn_type, category, sub_category, state FROM transactions"
         return pd.read_sql_query(query, self.conn)
 
-    def update_transactions(self, raw_data_list, txn_type, category, sub_category):
+    def update_transactions(self, raw_data_list, txn_type, category, sub_category, state = TxnState.PENDING_REVIEW):
         """Update transactions with the given classifications."""
         with self.conn as conn:
             cursor = conn.cursor()
@@ -123,12 +157,13 @@ class TxnStore:
                     UPDATE transactions
                     SET txn_type = ?,
                         category = ?,
-                        sub_category = ?
+                        sub_category = ?,
+                        state = ?
                     WHERE raw_data = ?
-                """, (txn_type, category, sub_category, raw_data))
+                """, (txn_type, category, sub_category, state, raw_data))
             conn.commit()
 
-    def update_transaction(self, txn_date, narration, txn_amnt, credit_indicator, txn_type, category, sub_category):
+    def update_transaction(self, txn_date, narration, txn_amnt, credit_indicator, txn_type, category, sub_category, state=TxnState.PENDING_REVIEW):
         """
         Update a specific transaction based on date, narration, amount, and credit indicator.
         Returns the number of rows updated, or 0 if no matching transaction is found.
@@ -146,6 +181,11 @@ class TxnStore:
             except ValueError:
                 print(f"Invalid transaction amount: {txn_amnt}. Update skipped.")
                 return 0
+        # Ensure credit_indicator is a string
+        if credit_indicator is None:
+            credit_indicator = ''
+        if not isinstance(credit_indicator, str):
+            credit_indicator = ''
         
         with self.conn as conn:
             cursor = conn.cursor()
@@ -162,9 +202,10 @@ class TxnStore:
                 UPDATE transactions
                 SET txn_type = ?,
                     category = ?,
-                    sub_category = ?
+                    sub_category = ?,
+                    state = ?
                 WHERE txn_date = ? AND narration = ? AND (CAST(REPLACE(txn_amount, ',', '') AS REAL) - ?) < 0.01 AND credit_indicator = ?
-            """, (txn_type, category, sub_category, txn_date, narration, txn_amnt, credit_indicator))
+            """, (txn_type, category, sub_category, state, txn_date, narration, txn_amnt, credit_indicator))
             updated_count = cursor.rowcount
             conn.commit()
             return updated_count

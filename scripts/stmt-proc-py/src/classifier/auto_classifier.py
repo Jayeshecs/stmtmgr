@@ -8,7 +8,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.multioutput import MultiOutputClassifier
-from store.txn_store import TxnStore
+from store.txn_store import TxnStore, TxnState
 from prompt_toolkit import prompt
 from classifier.classification_completer import CustomTransactionCompleter
 
@@ -78,7 +78,7 @@ class AutoClassifier:
         val_accuracy = np.mean(np.all(val_preds == y_val, axis=1))
         print(f"Validation accuracy: {val_accuracy:.2f}")
 
-    def classify(self):
+    def classify(self, batch_size=100):
         """
         Predict transaction classifications for transactions without labels.
         This method retrieves transactions from the store, prepares the data,
@@ -95,7 +95,10 @@ class AutoClassifier:
         df = self.txn_store.get_transactions()
 
         # Filter for transactions without classification
-        classify_df = df[df['txn_type'] == ''].copy().head(100)  # Limit to 1000 transactions for classification
+        if batch_size < 0:
+            classify_df = df[df['txn_type'] == ''].copy()  # All transactions for classification    
+        else:
+            classify_df = df[df['txn_type'] == ''].copy().head(batch_size)  # Limit to 1000 transactions for classification
 
         print(f"Number of transactions to classify: {len(classify_df)}")
 
@@ -112,11 +115,6 @@ class AutoClassifier:
         # Convert numeric predictions back to original labels
         classify_df['classification'] = self.classification_encoder.inverse_transform(preds[:, 0])
 
-        # Save classified results back to the store
-        #self.txn_store.store_transactions(test_df)
-        # print first 20 rows of the classified DataFrame
-        #print("Classified transactions:")
-        #print(classify_df[['raw_data', 'txn_source', 'txn_date', 'narration', 'txn_amount', 'credit_indicator', 'classification']].head(20))
         return classify_df
 
     def apply_classification(self):
@@ -181,7 +179,7 @@ class AutoClassifier:
                         narration = row['narration']
                         txn_amnt = row['txn_amount']
                         credit_indicator = row['credit_indicator']
-                        self.txn_store.update_transaction(txn_date, narration, txn_amnt, credit_indicator, txn_type, category, sub_category)
+                        self.txn_store.update_transaction(txn_date, narration, txn_amnt, credit_indicator, txn_type, category, sub_category, TxnState.ACCEPTED)
                     else:
                         print(f"Invalid classification format for row {idx}: {row['classification']}")
                 # For not accepted, prompt for manual classification or skip
@@ -200,7 +198,7 @@ class AutoClassifier:
                             narration = row['narration']
                             txn_amnt = row['txn_amount']
                             credit_indicator = row['credit_indicator']
-                            result = self.txn_store.update_transaction(txn_date, narration, txn_amnt, credit_indicator, txn_type, category, sub_category)
+                            result = self.txn_store.update_transaction(txn_date, narration, txn_amnt, credit_indicator, txn_type, category, sub_category, TxnState.ACCEPTED)
                             if result <= 0:
                                 print(f"Failed to update transaction for {txn_date} | {narration} | {txn_amnt} | {credit_indicator}. It may not exist.")
                             # Optionally update classify_df for retraining
@@ -216,6 +214,99 @@ class AutoClassifier:
                     break
                 i += batch_size
 
+    def export_classification_to_csv(self, output_file):
+        """
+        Export the classified transactions to a CSV file.
+        This method retrieves the transactions from the store, prepares the data,
+        and saves it to the specified output file.
+
+        Args:
+            output_file (str): The path to the output CSV file.
+        """
+        # Perform ML model training
+        print("Performing in-memory training...")
+
+        # Train the model
+        self.train()
+        print("Training completed successfully. Classifying transactions...")
+
+        # Classify transactions
+        classify_df = self.classify(-1) # Use -1 to classify all transactions without limit
+        # If no transactions to classify, exit
+        if classify_df.empty:
+            print("No transactions to classify. Exiting.")
+            return
+
+        # sort classify_df by narration
+        classify_df.sort_values(by='narration', inplace=True)
+
+        # Loop through the classified DataFrame and update txn_type, category, sub_category in the data frame based on classification
+        for idx, row in classify_df.iterrows():
+            parts = row['classification'].split('|')
+            if len(parts) == 3:
+                txn_type, category, sub_category = parts
+                classify_df.at[idx, 'txn_type'] = txn_type
+                classify_df.at[idx, 'category'] = category
+                classify_df.at[idx, 'sub_category'] = sub_category
+                classify_df.at[idx, 'state'] = TxnState.PENDING_REVIEW
+            else:
+                print(f"Invalid classification format for row {idx}: {row['classification']}")
+
+        # output data - txn_source, txn_date, narration, txn_amount, credit_indicator, txn_type, category, sub_category, raw_data, state
+        # Load transactions from the store
+        train_df = self.txn_store.get_transactions()
+
+        # Separate training data with labels
+        train_df = train_df[train_df['state'] != TxnState.PENDING_CLASSIFICATION].copy()
+
+        # Combine train_df and classify_df, then select required columns
+        df_csv = pd.concat([train_df, classify_df], ignore_index=True)[[
+            'txn_source', 'txn_date', 'narration', 'txn_amount', 'credit_indicator',
+            'txn_type', 'category', 'sub_category', 'raw_data', 'state'
+        ]]
+
+        # df_csv = classify_df[['txn_source', 'txn_date', 'narration', 'txn_amount', 'credit_indicator', 'txn_type', 'category', 'sub_category', 'raw_data', 'state']].copy()
+        df_csv.to_csv(output_file, index=False)
+        print(f"Classified transactions exported to {output_file}")
+    
+    def import_classification_from_csv(self, csv_file):
+        """
+        Import classification from a CSV file.
+        This method reads the specified CSV file and updates the transactions in the store with the classifications.
+
+        Args:
+            csv_file (str): The path to the CSV file containing classifications.
+        """
+        # Read the CSV file
+        df = pd.read_csv(csv_file)
+
+        # Check if required columns are present
+        required_columns = ['txn_source', 'txn_date', 'narration', 'txn_amount', 'credit_indicator', 'txn_type', 'category', 'sub_category', 'raw_data', 'state']
+        if not all(col in df.columns for col in required_columns):
+            raise ValueError(f"CSV file must contain the following columns: {', '.join(required_columns)}")
+
+        # Update transactions in the store
+        for _, row in df.iterrows():
+            # Convert txn_date to datetime object (format: 'yyyy-mm-dd')
+            txn_date = pd.to_datetime(row['txn_date'], format='%Y-%m-%d', errors='coerce')
+            narration = row['narration']
+            txn_amnt = float(str(row['txn_amount']).replace(',', ''))
+            credit_indicator = row['credit_indicator']
+            txn_type = row['txn_type']
+            category = row['category']
+            sub_category = row['sub_category']
+            state = row['state']
+            # Ensure state is a valid TxnState
+            if isinstance(state, str):
+                state = getattr(TxnState, state.upper(), '')  # Convert string to TxnState enum
+            if state == '':
+                state = TxnState.PENDING_CLASSIFICATION
+                if txn_type != '':
+                    state = TxnState.PENDING_REVIEW
+            # Update the transaction in the store
+            self.txn_store.update_transaction(txn_date, narration, txn_amnt, credit_indicator, txn_type, category, sub_category, state)
+        
+        print(f"Classifications imported from {csv_file}")
 
     def _prepare_raw_data(self, df):
         """

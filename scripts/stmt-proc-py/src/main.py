@@ -76,6 +76,40 @@ def auto_classify(txn_store: TxnStore):
     auto_classifier.apply_classification()
     print("Auto-classification completed successfully.")
 
+def auto_classify_csv_export(txn_store: TxnStore):
+    """
+    Export auto-classified transactions to a CSV file.
+    This function retrieves the auto-classified transactions from the TxnStore
+    and writes them to a CSV file for further analysis or reporting.
+    It assumes that the transactions have been auto-classified using the AutoClassifier.
+    It does not take any parameters and uses the TxnStore instance to access the transactions.
+    It prints messages to indicate the progress of the export process.
+    It is designed to be called from the command line interface of the application.
+    It does not return any value.
+    """
+    
+    print("Exporting auto-classified transactions to CSV...")
+    auto_classifier = AutoClassifier(txn_store)
+    auto_classifier.export_classification_to_csv('../export/auto-classification-transactions.csv')
+    print("Auto-classified transactions exported successfully.")
+
+def auto_classify_csv_import(txn_store: TxnStore):
+    """
+    Import updated auto-classified transactions from a CSV file.
+    This function reads the auto-classified transactions from a CSV file
+    and updates the TxnStore with the new classifications.
+    It assumes that the CSV file contains the necessary fields for classification.
+    It does not take any parameters and uses the TxnStore instance to access the transactions.
+    It prints messages to indicate the progress of the import process.
+    It is designed to be called from the command line interface of the application.
+    It does not return any value.
+    """
+    
+    print("Importing updated auto-classified transactions from CSV...")
+    auto_classifier = AutoClassifier(txn_store)
+    auto_classifier.import_classification_from_csv('../import/auto-classification-transactions.csv')
+    print("Updated auto-classified transactions imported successfully.")
+
 def main():
     # Check command line arguments for operation type
     if len(sys.argv) < 2:
@@ -143,6 +177,14 @@ def main():
     elif operation == "auto-classify":
         print("Auto-classifying transactions...")
         auto_classify(txn_store)
+
+    elif operation == "classify-csv-export":
+        print("Exporting auto-classification transactions and in csv file...")
+        auto_classify_csv_export(txn_store)
+
+    elif operation == "classify-csv-import":
+        print("Importing updated auto-classification transactions csv file...")
+        auto_classify_csv_import(txn_store)
 
     else:
         print(f"Unknown operation: {operation}")

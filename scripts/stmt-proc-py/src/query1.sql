@@ -16,6 +16,8 @@ UNION
 SELECT "Total" as COUNT_TYPE, count(*) as count
 FROM transactions
 
+select txn_type, category, sub_category, narration from transactions
+where upper(narration) like '%HIRARAM%';
 
 
 
@@ -31,3 +33,5 @@ where narration = 'WWW ACKO COM             GURGAON';
 select * from transactions where txn_source = 'CC2486' and narration = 'NETBANKING TRANSFER (Ref# 00000000000128016172396)';
 
 select * from transactions where txn_date = '2025-01-30';
+
+select * from transactions where narration like '%MSEDCL%';
